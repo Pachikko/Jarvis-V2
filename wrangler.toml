@@ -1,3 +1,3 @@
-name = "jarvis-bot"
-main = "main.js"
+name = "jarvis-v2"
+main = "index.js"
 compatibility_date = "2025-05-28"
