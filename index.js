@@ -1,10 +1,11 @@
-// Проверка наличия токена
-if (typeof TELEGRAM_TOKEN === 'undefined') {
-  throw new Error('TELEGRAM_TOKEN не найден! Добавьте его в Settings -> Variables');
-}
-
-const TOKEN = TELEGRAM_TOKEN;
+// Уберите проверку через throw, замените на более мягкую
+const TOKEN = typeof TELEGRAM_TOKEN !== 'undefined' ? TELEGRAM_TOKEN : '';
 const API = `https://api.telegram.org/bot${TOKEN}`;
+
+if (!TOKEN) {
+  console.error('TELEGRAM_TOKEN не настроен');
+  // Не бросаем ошибку, чтобы Worker мог деплоиться
+};
 
 const options = {
   accounts: ['10k 💰', '25k 💼', '50k 💳', '100k 🏦', '200k 🚀'],
