@@ -1,3 +1,6 @@
+if (!TELEGRAM_TOKEN) {
+  throw new Error("TELEGRAM_TOKEN is not defined in environment variables");
+}
 const TOKEN = TELEGRAM_TOKEN; // Cloudflare автоматически подставляет значение
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
