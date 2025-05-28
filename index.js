@@ -1,12 +1,3 @@
-export default {
-  async fetch(request) {
-    const token = globalThis.TELEGRAM_TOKEN;
-    if (!token) {
-      return new Response('❌ TOKEN NOT FOUND', { status: 500 });
-    }
-    return new Response(`✅ Jarvis online | Token starts with: ${token.slice(0, 10)}...`);
-  }
-}
 const TOKEN = globalThis.TELEGRAM_TOKEN;
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
@@ -21,23 +12,22 @@ const sessions = {};
 function reply(chatId, text, keyboard) {
   return fetch(`${API}/sendMessage`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: chatId,
       text,
       reply_markup: keyboard ? {
-        keyboard: [keyboard.map(v => ({ text: v }))],
+        keyboard: [keyboard.map(opt => ({ text: opt }))],
         resize_keyboard: true,
         one_time_keyboard: true,
       } : undefined
-    }),
-    headers: { 'Content-Type': 'application/json' }
+    })
   });
 }
 
 function calculateLot({ account, risk, entry, sl, pair }) {
   const slDistance = Math.abs(entry - sl);
   const riskAmount = account * risk;
-
   const settings = {
     EURUSD: { pipValue: 10, multiplier: 10 },
     GBPUSD: { pipValue: 10, multiplier: 10 },
@@ -47,10 +37,8 @@ function calculateLot({ account, risk, entry, sl, pair }) {
     XPTUSD: { pipValue: 10, multiplier: 10 },
     XPDUSD: { pipValue: 10, multiplier: 10 },
   };
-
   const conf = settings[pair];
   if (!conf || slDistance === 0) return null;
-
   return +(riskAmount / (slDistance * conf.pipValue * conf.multiplier)).toFixed(2);
 }
 
@@ -67,19 +55,19 @@ export default {
     const update = await request.json();
     const message = update.message;
     if (!message || !message.chat || !message.text) {
-      return new Response('No message content');
+      return new Response('No valid message');
     }
 
     const chatId = message.chat.id;
     const text = message.text.trim();
 
     if (!sessions[chatId]) sessions[chatId] = {};
-
     const state = sessions[chatId];
 
     if (text === '/start' || text === 'Новый расчет 🔄') {
       sessions[chatId] = {};
-      return reply(chatId, 'Привет, я Jarvis V2 🤖\nВыбери сумму аккаунта:', options.accounts).then(() => new Response('OK'));
+      return reply(chatId, 'Привет, я Jarvis 🤖\nВыбери сумму аккаунта:', options.accounts)
+        .then(() => new Response('OK'));
     }
 
     if (!state.account && options.accounts.includes(text)) {
@@ -110,17 +98,14 @@ export default {
     if (!state.tp && !isNaN(+text)) {
       state.tp = +text;
       const lot = calculateLot(state);
+      const summary = lot
+        ? `📌 Пара: ${state.pair}\n💰 Лот: ${lot}\n📉 SL: ${state.sl}\n📈 TP: ${state.tp}`
+        : `Ошибка в расчёте. Проверь SL и entry.`;
 
-      if (!lot) {
-        sessions[chatId] = {};
-        return reply(chatId, 'Ошибка в расчёте. Попробуй заново /start').then(() => new Response('OK'));
-      }
-
-      const summary = `📌 Пара: ${state.pair}\n💰 Лот: ${lot}\n📉 SL: ${state.sl}\n📈 TP: ${state.tp}`;
       sessions[chatId] = {};
       return reply(chatId, summary, ['Новый расчет 🔄']).then(() => new Response('OK'));
     }
 
-    return reply(chatId, 'Не понимаю. Напиши /start чтобы начать.').then(() => new Response('OK'));
+    return reply(chatId, 'Не понял. Напиши /start').then(() => new Response('OK'));
   }
 };
