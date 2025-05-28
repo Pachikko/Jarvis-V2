@@ -1,4 +1,4 @@
-const TOKEN = '7874194247:AAGVIAZnYzzeG792MRjGi0YM76hBsqzW3kA';
+const TOKEN = globalThis.TELEGRAM_TOKEN;
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
 const options = {
