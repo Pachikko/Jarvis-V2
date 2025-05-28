@@ -23,6 +23,12 @@ function reply(chatId, text, keyboard) {
         one_time_keyboard: true
       } : undefined
     })
+  }).then(r => r.text().then(t => {
+    console.log("📤 Telegram response:", t);
+    return new Response('OK');
+  })).catch(e => {
+    console.error("❌ Telegram error:", e);
+    return new Response('Error');
   });
 }
 
@@ -46,7 +52,7 @@ function calculateLot({ account, risk, entry, sl, pair }) {
 export default {
   async fetch(request) {
     if (request.method === 'GET') {
-      return new Response('Jarvis online');
+      return new Response('Jarvis v3 online');
     }
 
     try {
@@ -55,6 +61,8 @@ export default {
       if (!message || !message.chat || !message.text) {
         return new Response('No valid message');
       }
+
+      console.log("📦 POST from Telegram:", JSON.stringify(update));
 
       const chatId = message.chat.id;
       const text = message.text.trim();
