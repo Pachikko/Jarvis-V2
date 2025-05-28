@@ -1,3 +1,12 @@
+export default {
+  async fetch(request) {
+    const token = globalThis.TELEGRAM_TOKEN;
+    if (!token) {
+      return new Response('❌ TOKEN NOT FOUND', { status: 500 });
+    }
+    return new Response(`✅ Jarvis online | Token starts with: ${token.slice(0, 10)}...`);
+  }
+}
 const TOKEN = globalThis.TELEGRAM_TOKEN;
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
