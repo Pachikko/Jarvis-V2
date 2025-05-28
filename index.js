@@ -1,5 +1,18 @@
-const TOKEN = '7901685630:AAFeWgzr7kvx-T7iYcYI-GDE1VICd9kV6CI';
+const TOKEN = TELEGRAM_TOKEN; // Cloudflare автоматически подставляет значение
 const API = `https://api.telegram.org/bot${TOKEN}`;
+
+addEventListener('fetch', (event) => {
+  event.respondWith(handleRequest(event.request));
+});
+
+async function handleRequest(request) {
+  const response = await fetch(`${API}/getMe`);
+  const data = await response.json();
+  
+  return new Response(JSON.stringify(data), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+
 
 const options = {
   accounts: ['10k 💰', '25k 💼', '50k 💳', '100k 🏦', '200k 🚀'],
