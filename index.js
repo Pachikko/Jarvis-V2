@@ -1,6 +1,6 @@
-// Проверка наличия токена (обязательно!)
+// Проверка наличия токена
 if (typeof TELEGRAM_TOKEN === 'undefined') {
-  throw new Error('TELEGRAM_TOKEN is not defined! Добавьте его в Settings -> Variables');
+  throw new Error('TELEGRAM_TOKEN не найден! Добавьте его в Settings -> Variables');
 }
 
 const TOKEN = TELEGRAM_TOKEN;
@@ -14,7 +14,6 @@ const options = {
 
 const sessions = {};
 
-// Функция для отправки сообщений
 async function sendMessage(chatId, text, keyboard) {
   const body = {
     chat_id: chatId,
@@ -35,7 +34,6 @@ async function sendMessage(chatId, text, keyboard) {
   return await response.json();
 }
 
-// Функция расчета лота
 function calculateLot({ account, risk, entry, sl, pair }) {
   const slDistance = Math.abs(entry - sl);
   const riskAmount = account * risk;
@@ -57,7 +55,6 @@ function calculateLot({ account, risk, entry, sl, pair }) {
   return parseFloat(lot.toFixed(2));
 }
 
-// Основной обработчик
 export default {
   async fetch(request) {
     // Health check
@@ -88,7 +85,7 @@ export default {
 
       // Обработка команд
       if (text === '/start' || text === 'Новый расчет 🔄') {
-        sessions[chatId] = {}; // Сброс сессии
+        sessions[chatId] = {};
         await sendMessage(chatId, 'Привет, я Jarvis 🤖\nВыбери сумму аккаунта:', options.accounts);
         return new Response('OK');
       }
@@ -148,7 +145,7 @@ export default {
           responseText = '❌ Ошибка в расчетах. Проверьте введенные данные.';
         }
 
-        sessions[chatId] = {}; // Сброс сессии
+        sessions[chatId] = {};
         await sendMessage(chatId, responseText, ['Новый расчет 🔄']);
         return new Response('OK');
       }
