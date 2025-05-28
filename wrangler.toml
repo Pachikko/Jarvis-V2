@@ -1,6 +1,27 @@
 name = "jarvis-v3"
 main = "index.js"
 compatibility_date = "2025-05-28"
-# wrangler.toml (wrangler v3.88.0^)
+
+[build]
+upload.format = "modules"
+upload.main = "./index.js"
+
+[env]
+# Переменные окружения (если используете .env для разработки)
+# Должны быть добавлены через wrangler secret put для продакшена
+name = "jarvis-v3-production"
+
 [observability.logs]
 enabled = true
+bindings = [
+  { name = "TELEGRAM_TOKEN", type = "secret_text" }
+]
+
+[vars]
+# Здесь можно определить обычные переменные (не секреты)
+# Например:
+# BOT_VERSION = "3.0"
+
+# Конфигурация для триггеров (если нужно)
+[triggers]
+crons = []
