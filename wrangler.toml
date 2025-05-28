@@ -1,4 +1,4 @@
-name = "jarvis-v2"
+name = "jarvis-v3"
 main = "index.js"
 compatibility_date = "2025-05-28"
 # wrangler.toml (wrangler v3.88.0^)
