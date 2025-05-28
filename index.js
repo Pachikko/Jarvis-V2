@@ -1,4 +1,4 @@
-const TOKEN = globalThis.TELEGRAM_TOKEN;
+const TOKEN = '7901685630:AAFeWgzr7kvx-T7iYcYI-GDE1VICd9kV6CI'; // временно
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
 async function reply(chatId, text) {
