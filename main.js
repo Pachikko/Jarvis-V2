@@ -46,13 +46,20 @@ function calculateLot({ account, risk, entry, sl, pair }) {
 }
 
 export default {
-  async fetch(request, env, ctx) {
-    if (request.method !== 'POST') {
+  async fetch(request) {
+    if (request.method === 'GET') {
       return new Response('Jarvis online');
     }
 
-    const { message } = await request.json();
-    if (!message || !message.chat || !message.text) return new Response('OK');
+    if (request.method !== 'POST') {
+      return new Response('Only POST requests accepted', { status: 405 });
+    }
+
+    const update = await request.json();
+    const message = update.message;
+    if (!message || !message.chat || !message.text) {
+      return new Response('No message content');
+    }
 
     const chatId = message.chat.id;
     const text = message.text.trim();
@@ -63,32 +70,32 @@ export default {
 
     if (text === '/start' || text === 'Новый расчет 🔄') {
       sessions[chatId] = {};
-      return reply(chatId, 'Привет, я Jarvis V2 🤖\nВыбери сумму аккаунта:', options.accounts);
+      return reply(chatId, 'Привет, я Jarvis V2 🤖\nВыбери сумму аккаунта:', options.accounts).then(() => new Response('OK'));
     }
 
     if (!state.account && options.accounts.includes(text)) {
       state.account = parseInt(text) * 1000;
-      return reply(chatId, 'Теперь выбери риск:', options.risks);
+      return reply(chatId, 'Теперь выбери риск:', options.risks).then(() => new Response('OK'));
     }
 
     if (!state.risk && options.risks.includes(text)) {
       state.risk = parseFloat(text) / 100;
-      return reply(chatId, 'Выбери торговую пару:', options.pairs);
+      return reply(chatId, 'Выбери торговую пару:', options.pairs).then(() => new Response('OK'));
     }
 
     if (!state.pair && options.pairs.includes(text)) {
       state.pair = text;
-      return reply(chatId, `Введи цену входа для ${text}:`);
+      return reply(chatId, `Введи цену входа для ${text}:`).then(() => new Response('OK'));
     }
 
     if (!state.entry && !isNaN(+text)) {
       state.entry = +text;
-      return reply(chatId, 'Введи цену стоп-лосса:');
+      return reply(chatId, 'Введи цену стоп-лосса:').then(() => new Response('OK'));
     }
 
     if (!state.sl && !isNaN(+text)) {
       state.sl = +text;
-      return reply(chatId, 'Введи цену тейк-профита:');
+      return reply(chatId, 'Введи цену тейк-профита:').then(() => new Response('OK'));
     }
 
     if (!state.tp && !isNaN(+text)) {
@@ -97,14 +104,14 @@ export default {
 
       if (!lot) {
         sessions[chatId] = {};
-        return reply(chatId, 'Ошибка в расчёте. Попробуй заново /start');
+        return reply(chatId, 'Ошибка в расчёте. Попробуй заново /start').then(() => new Response('OK'));
       }
 
       const summary = `📌 Пара: ${state.pair}\n💰 Лот: ${lot}\n📉 SL: ${state.sl}\n📈 TP: ${state.tp}`;
       sessions[chatId] = {};
-      return reply(chatId, summary, ['Новый расчет 🔄']);
+      return reply(chatId, summary, ['Новый расчет 🔄']).then(() => new Response('OK'));
     }
 
-    return reply(chatId, 'Не понимаю. Напиши /start чтобы начать.');
+    return reply(chatId, 'Не понимаю. Напиши /start чтобы начать.').then(() => new Response('OK'));
   }
 };
