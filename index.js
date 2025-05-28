@@ -1,7 +1,9 @@
-if (!TELEGRAM_TOKEN) {
-  throw new Error("TELEGRAM_TOKEN is not defined in environment variables");
+// Проверка наличия токена (обязательно!)
+if (typeof TELEGRAM_TOKEN === 'undefined') {
+  throw new Error('TELEGRAM_TOKEN is not defined! Добавьте его в Settings -> Variables');
 }
-const TOKEN = TELEGRAM_TOKEN; // Cloudflare автоматически подставляет значение
+
+const TOKEN = TELEGRAM_TOKEN;
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
 const options = {
@@ -12,7 +14,8 @@ const options = {
 
 const sessions = {};
 
-function reply(chatId, text, keyboard) {
+// Функция для отправки сообщений
+async function sendMessage(chatId, text, keyboard) {
   const body = {
     chat_id: chatId,
     text,
@@ -23,18 +26,21 @@ function reply(chatId, text, keyboard) {
     } : undefined
   };
 
-  return fetch(`${API}/sendMessage`, {
+  const response = await fetch(`${API}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
+
+  return await response.json();
 }
 
+// Функция расчета лота
 function calculateLot({ account, risk, entry, sl, pair }) {
   const slDistance = Math.abs(entry - sl);
   const riskAmount = account * risk;
 
-  const settings = {
+  const pairSettings = {
     EURUSD: { pipValue: 10, multiplier: 10 },
     GBPUSD: { pipValue: 10, multiplier: 10 },
     EURGBP: { pipValue: 10, multiplier: 10 },
@@ -44,90 +50,116 @@ function calculateLot({ account, risk, entry, sl, pair }) {
     XPDUSD: { pipValue: 10, multiplier: 10 }
   };
 
-  const conf = settings[pair];
-  if (!conf || slDistance === 0) return null;
+  const settings = pairSettings[pair];
+  if (!settings || slDistance === 0) return null;
 
-  return +(riskAmount / (slDistance * conf.pipValue * conf.multiplier)).toFixed(2);
+  const lot = riskAmount / (slDistance * settings.pipValue * settings.multiplier);
+  return parseFloat(lot.toFixed(2));
 }
 
+// Основной обработчик
 export default {
   async fetch(request) {
-    // Проверка метода GET для health check
+    // Health check
     if (request.method === 'GET') {
-      return new Response('Jarvis v3 online');
+      return new Response('Jarvis v3 online', { 
+        headers: { 'Content-Type': 'text/plain' } 
+      });
     }
 
-    // Проверка метода POST для Telegram webhook
+    // Только POST-запросы от Telegram
     if (request.method !== 'POST') {
-      return new Response('Only POST requests accepted', { status: 405 });
+      return new Response('Method Not Allowed', { status: 405 });
     }
 
     try {
       const update = await request.json();
-      const message = update.message;
+      const message = update.message || update.callback_query?.message;
       
-      if (!message || !message.chat || !message.text) {
-        return new Response('No valid message');
+      if (!message || !message.chat) {
+        return new Response('Invalid message format', { status: 400 });
       }
 
       const chatId = message.chat.id;
-      const text = message.text.trim();
+      const text = message.text?.trim() || '';
 
       if (!sessions[chatId]) sessions[chatId] = {};
-      const state = sessions[chatId];
+      const session = sessions[chatId];
 
+      // Обработка команд
       if (text === '/start' || text === 'Новый расчет 🔄') {
-        sessions[chatId] = {};
-        await reply(chatId, 'Привет, я Jarvis 🤖\nВыбери сумму аккаунта:', options.accounts);
+        sessions[chatId] = {}; // Сброс сессии
+        await sendMessage(chatId, 'Привет, я Jarvis 🤖\nВыбери сумму аккаунта:', options.accounts);
         return new Response('OK');
       }
 
-      if (!state.account && options.accounts.includes(text)) {
-        state.account = parseInt(text) * 1000;
-        await reply(chatId, 'Теперь выбери риск:', options.risks);
+      // Обработка выбора аккаунта
+      if (!session.account && options.accounts.includes(text)) {
+        session.account = parseFloat(text) * 1000;
+        await sendMessage(chatId, 'Теперь выбери риск:', options.risks);
         return new Response('OK');
       }
 
-      if (!state.risk && options.risks.includes(text)) {
-        state.risk = parseFloat(text) / 100;
-        await reply(chatId, 'Выбери торговую пару:', options.pairs);
+      // Обработка выбора риска
+      if (!session.risk && options.risks.includes(text)) {
+        session.risk = parseFloat(text) / 100;
+        await sendMessage(chatId, 'Выбери торговую пару:', options.pairs);
         return new Response('OK');
       }
 
-      if (!state.pair && options.pairs.includes(text)) {
-        state.pair = text;
-        await reply(chatId, `Введи цену входа для ${text}:`);
+      // Обработка выбора пары
+      if (!session.pair && options.pairs.includes(text)) {
+        session.pair = text;
+        await sendMessage(chatId, `Введи цену входа для ${text}:`);
         return new Response('OK');
       }
 
-      if (!state.entry && !isNaN(+text)) {
-        state.entry = +text;
-        await reply(chatId, 'Введи цену стоп-лосса:');
+      // Ввод цены входа
+      if (!session.entry && !isNaN(parseFloat(text))) {
+        session.entry = parseFloat(text);
+        await sendMessage(chatId, 'Введи цену стоп-лосса:');
         return new Response('OK');
       }
 
-      if (!state.sl && !isNaN(+text)) {
-        state.sl = +text;
-        await reply(chatId, 'Введи цену тейк-профита:');
+      // Ввод стоп-лосса
+      if (!session.sl && !isNaN(parseFloat(text))) {
+        session.sl = parseFloat(text);
+        await sendMessage(chatId, 'Введи цену тейк-профита:');
         return new Response('OK');
       }
 
-      if (!state.tp && !isNaN(+text)) {
-        state.tp = +text;
-        const lot = calculateLot(state);
-        const summary = lot
-          ? `📌 Пара: ${state.pair}\n💰 Лот: ${lot}\n📉 SL: ${state.sl}\n📈 TP: ${state.tp}`
-          : '❗ Ошибка в расчёте. Проверь SL и entry.';
+      // Ввод тейк-профита и расчет
+      if (!session.tp && !isNaN(parseFloat(text))) {
+        session.tp = parseFloat(text);
+        const lot = calculateLot(session);
+        
+        let responseText;
+        if (lot) {
+          responseText = [
+            '📊 Результат расчета:',
+            `📌 Пара: ${session.pair}`,
+            `💰 Лот: ${lot}`,
+            `🔴 SL: ${session.sl}`,
+            `🟢 TP: ${session.tp}`,
+            '',
+            'Для нового расчета нажмите кнопку ниже'
+          ].join('\n');
+        } else {
+          responseText = '❌ Ошибка в расчетах. Проверьте введенные данные.';
+        }
 
-        sessions[chatId] = {};
-        await reply(chatId, summary, ['Новый расчет 🔄']);
+        sessions[chatId] = {}; // Сброс сессии
+        await sendMessage(chatId, responseText, ['Новый расчет 🔄']);
         return new Response('OK');
       }
 
-      await reply(chatId, '❓ Не понял. Напиши /start');
+      // Неизвестная команда
+      await sendMessage(chatId, 'Я не понял команду. Нажмите /start');
       return new Response('OK');
+
     } catch (error) {
-      return new Response(`Error: ${error.message}`, { status: 500 });
+      console.error('Error:', error);
+      return new Response('Internal Server Error', { status: 500 });
     }
   }
 };
