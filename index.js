@@ -1,6 +1,6 @@
 const options = {
-  accounts: ['10k 💰', '25k 💰', '50k 💰', '100k 💰', '200k 💰'],
-  risks: ['0.3% 🧠', '0.5% 🧩', '1% 📈', '2% 🔥'],
+  accounts: ['10k 💰', '25k 💼', '50k 💳', '100k 🏦', '200k 🚀'],
+  risks: ['0.3% 🧠', '0.5% 💪', '1% 📈', '2% 🔥'],
   categories: ['🤑 Forex', '🥇 Metals', '📈 Indices'],
   pairs: {
     '🤑 Forex': ['🇪🇺 EURUSD', '🇬🇧 GBPUSD'],
@@ -87,9 +87,9 @@ export default {
       if (text === '/start' || text === '🔄 Новый расчет') {
         sessions[chatId] = {}
         await sendMessage(API, chatId, 'Привет, я Jarvis 🤖\nВыбери сумму аккаунта:', [
-          ['10k 💰', '25k 💰'],
-          ['50k 💰', '100k 💰'],
-          ['200k 💰']
+          ['10k 💰', '25k 💼'],
+          ['50k 💳', '100k 🏦'],
+          ['200k 🚀']
         ])
         return new Response('OK')
       }
@@ -102,7 +102,10 @@ export default {
 
       if (!session.account && options.accounts.includes(text)) {
         session.account = parseFloat(text) * 1000
-        await sendMessage(API, chatId, 'Теперь выбери риск:', [options.risks])
+        await sendMessage(API, chatId, 'Теперь выбери риск:', [
+          ['0.3% 🧠', '0.5% 💪'],
+          ['1% 📈', '2% 🔥']
+        ])
         return new Response('OK')
       }
 
@@ -164,15 +167,13 @@ export default {
           const rr = Math.abs((session.tp - session.entry) / (session.entry - session.sl)).toFixed(2)
           const accountFormatted = `$${session.account.toLocaleString()}`
           responseText = [
-            '────────────────────────',
             `📈 ${session.pair} | Risk: ${(session.risk*100).toFixed(1)}%`,
             `💼 Account: ${accountFormatted}`,
             ``,
             `💵 Lot Size: ${lot}`,
             `🔴 Stop Loss: ${session.sl}`,
             `🟢 Take Profit: ${session.tp}`,
-            `⚖️ R:R = ${rr}`,
-            '────────────────────────'
+            `⚖️ R:R = ${rr}`
           ].join('\n')
         } else {
           responseText = '❌ Ошибка в расчетах. Проверьте введенные данные.'
