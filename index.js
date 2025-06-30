@@ -1,7 +1,7 @@
 const options = {
   accounts: ['10k 💰', '25k 💼', '50k 💳', '100k 🏦', '200k 🚀'],
   risks: ['0.3% 🧠', '0.5% 🧩', '1% 📈', '2% 🔥'],
-  pairs: ['EURUSD', 'GBPUSD', 'EURGBP', 'XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD']
+  pairs: ['EURUSD', 'GBPUSD', 'XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD', 'GER40.cash', 'US100.cash', 'US500.cash', 'US30.cash', 'EU50.cash']
 }
 
 const sessions = {}
@@ -26,47 +26,54 @@ async function sendMessage(API, chatId, text, keyboard) {
   return await response.json()
 }
 
-function calculateLot({ account, risk, entry, sl, pair }) {
-  const slDistance = Math.abs(entry - sl)
-  const riskAmount = account * risk
-
-  const pairSettings = {
-    EURUSD: { pipValue: 10, multiplier: 10 },
-    GBPUSD: { pipValue: 10, multiplier: 10 },
-    EURGBP: { pipValue: 10, multiplier: 10 },
-    XAUUSD: { pipValue: 1, multiplier: 100 },
-    XAGUSD: { pipValue: 50, multiplier: 50 },
-    XPTUSD: { pipValue: 10, multiplier: 10 },
-    XPDUSD: { pipValue: 10, multiplier: 10 }
+function calculateLot({ account, risk, entry, sl, pair, eurusd }) {
+  const pipSettings = {
+    EURUSD: { pipSize: 0.0001, pipValue: 10 },
+    GBPUSD: { pipSize: 0.0001, pipValue: 10 },
+    XAUUSD: { pipSize: 0.01, pipValue: 1 },
+    XAGUSD: { pipSize: 0.01, pipValue: 50 },
+    XPTUSD: { pipSize: 0.01, pipValue: 1 },
+    XPDUSD: { pipSize: 0.01, pipValue: 1 },
+    GER40: { pipSize: 1, pipValue: 1, currency: 'EUR' },
+    EU50: { pipSize: 1, pipValue: 1, currency: 'EUR' },
+    US100: { pipSize: 1, pipValue: 1 },
+    US500: { pipSize: 1, pipValue: 1 },
+    US30: { pipSize: 1, pipValue: 1 }
   }
 
-  const settings = pairSettings[pair]
-  if (!settings || slDistance === 0) return null
+  const shortPair = pair.replace('.cash','')
+  const settings = pipSettings[shortPair]
+  if (!settings) return null
 
-  const lot = riskAmount / (slDistance * settings.pipValue * settings.multiplier)
+  const slPips = Math.abs(entry - sl) / settings.pipSize
+  if (slPips === 0) return null
+
+  let pipValue = settings.pipValue
+  if (settings.currency === 'EUR' && eurusd) {
+    pipValue *= eurusd
+  }
+
+  const riskAmount = account * risk
+  const lot = riskAmount / (slPips * pipValue)
+
   return parseFloat(lot.toFixed(2))
 }
 
 export default {
   async fetch(request, env) {
-    // Уберите проверку через throw, замените на более мягкую
-    const TOKEN = typeof env.TELEGRAM_TOKEN !== 'undefined' ? env.TELEGRAM_TOKEN : ''
+    const TOKEN = env.TELEGRAM_TOKEN || ''
     if (!TOKEN) {
       console.error('TELEGRAM_TOKEN не настроен')
-      // Не бросаем ошибку, чтобы Worker мог деплоиться
     }
-    
 
     const API = `https://api.telegram.org/bot${TOKEN}`
 
-    // Health check
     if (request.method === 'GET') {
       return new Response('Jarvis v3 online', {
         headers: { 'Content-Type': 'text/plain' }
       })
     }
 
-    // Только POST-запросы от Telegram
     if (request.method !== 'POST') {
       return new Response('Method Not Allowed', { status: 405 })
     }
@@ -85,61 +92,66 @@ export default {
       if (!sessions[chatId]) sessions[chatId] = {}
       const session = sessions[chatId]
 
-      // Обработка команд
       if (text === '/start' || text === 'Новый расчет 🔄') {
         sessions[chatId] = {}
         await sendMessage(API, chatId, 'Привет, я Jarvis 🤖\nВыбери сумму аккаунта:', options.accounts)
         return new Response('OK')
       }
 
-      // Обработка выбора аккаунта
       if (!session.account && options.accounts.includes(text)) {
         session.account = parseFloat(text) * 1000
         await sendMessage(API, chatId, 'Теперь выбери риск:', options.risks)
         return new Response('OK')
       }
 
-      // Обработка выбора риска
       if (!session.risk && options.risks.includes(text)) {
         session.risk = parseFloat(text) / 100
-        await sendMessage(API, chatId, 'Выбери торговую пару:', options.pairs)
+        await sendMessage(API, chatId, 'Выбери инструмент:', options.pairs)
         return new Response('OK')
       }
 
-      // Обработка выбора пары
       if (!session.pair && options.pairs.includes(text)) {
         session.pair = text
-        await sendMessage(API, chatId, `Введи цену входа для ${text}:`)
+        if (['GER40.cash', 'EU50.cash'].includes(text)) {
+          await sendMessage(API, chatId, 'Введите курс EURUSD:')
+        } else {
+          await sendMessage(API, chatId, `Введи цену входа для ${text}:`)
+        }
         return new Response('OK')
       }
 
-      // Ввод цены входа
+      if ((session.pair === 'GER40.cash' || session.pair === 'EU50.cash') && !session.eurusd && !isNaN(parseFloat(text))) {
+        session.eurusd = parseFloat(text)
+        await sendMessage(API, chatId, `Введи цену входа для ${session.pair}:`)
+        return new Response('OK')
+      }
+
       if (!session.entry && !isNaN(parseFloat(text))) {
         session.entry = parseFloat(text)
         await sendMessage(API, chatId, 'Введи цену стоп-лосса:')
         return new Response('OK')
       }
 
-      // Ввод стоп-лосса
       if (!session.sl && !isNaN(parseFloat(text))) {
         session.sl = parseFloat(text)
         await sendMessage(API, chatId, 'Введи цену тейк-профита:')
         return new Response('OK')
       }
 
-      // Ввод тейк-профита и расчет
       if (!session.tp && !isNaN(parseFloat(text))) {
         session.tp = parseFloat(text)
         const lot = calculateLot(session)
 
         let responseText
         if (lot) {
+          const rr = Math.abs((session.tp - session.entry) / (session.entry - session.sl)).toFixed(2)
           responseText = [
             '📊 Результат расчета:',
-            `📌 Пара: ${session.pair}`,
+            `📌 Инструмент: ${session.pair}`,
             `💰 Лот: ${lot}`,
             `🔴 SL: ${session.sl}`,
             `🟢 TP: ${session.tp}`,
+            `⚖️ RR: ${rr}`,
             '',
             'Для нового расчета нажмите кнопку ниже'
           ].join('\n')
@@ -152,7 +164,6 @@ export default {
         return new Response('OK')
       }
 
-      // Неизвестная команда
       await sendMessage(API, chatId, 'Я не понял команду. Нажмите /start')
       return new Response('OK')
 
