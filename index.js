@@ -1,7 +1,7 @@
 const options = {
   accounts: ['10k 💰', '25k 💼', '50k 💳', '100k 🏦', '200k 🚀'],
   risks: ['0.3% 🧠', '0.5% 🧩', '1% 📈', '2% 🔥'],
-  pairs: ['EURUSD', 'GBPUSD', 'XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD', 'GER40.cash', 'US100.cash', 'US500.cash', 'US30.cash', 'EU50.cash']
+  pairs: ['EURUSD', 'GBPUSD', 'XAUUSD', 'XAGUSD', 'GER40.cash', 'US100.cash', 'US500.cash', 'US30.cash', 'EU50.cash']
 }
 
 const sessions = {}
