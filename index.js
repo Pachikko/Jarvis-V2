@@ -1,7 +1,12 @@
 const options = {
   accounts: ['10k 💰', '25k 💼', '50k 💳', '100k 🏦', '200k 🚀'],
   risks: ['0.3% 🧠', '0.5% 🧩', '1% 📈', '2% 🔥'],
-  pairs: ['EURUSD', 'GBPUSD', 'XAUUSD', 'XAGUSD', 'GER40.cash', 'US100.cash', 'US500.cash', 'US30.cash', 'EU50.cash']
+  categories: ['🤑 Forex', '🥇 Metals', '📈 Indices'],
+  pairs: {
+    '🤑 Forex': ['🇪🇺 EURUSD', '🇬🇧 GBPUSD'],
+    '🥇 Metals': ['🥇 XAUUSD', '🥈 XAGUSD', '🔵 XPTUSD', '⚫ XPDUSD'],
+    '📈 Indices': ['🇩🇪 GER40.cash', '🇺🇸 US100.cash', '🇺🇸 US500.cash', '🇺🇸 US30.cash', '🇪🇺 EU50.cash']
+  }
 }
 
 const sessions = {}
@@ -11,19 +16,17 @@ async function sendMessage(API, chatId, text, keyboard) {
     chat_id: chatId,
     text,
     reply_markup: keyboard ? {
-      keyboard: [keyboard.map(opt => ({ text: opt }))],
+      keyboard: keyboard.map(row => row.map(text => ({ text }))),
       resize_keyboard: true,
       one_time_keyboard: true
     } : undefined
   }
 
-  const response = await fetch(`${API}/sendMessage`, {
+  await fetch(`${API}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   })
-
-  return await response.json()
 }
 
 function calculateLot({ account, risk, entry, sl, pair, eurusd }) {
@@ -41,7 +44,7 @@ function calculateLot({ account, risk, entry, sl, pair, eurusd }) {
     US30: { pipSize: 1, pipValue: 1 }
   }
 
-  const shortPair = pair.replace('.cash','')
+  const shortPair = pair.split(' ')[1].replace('.cash','')
   const settings = pipSettings[shortPair]
   if (!settings) return null
 
@@ -62,16 +65,10 @@ function calculateLot({ account, risk, entry, sl, pair, eurusd }) {
 export default {
   async fetch(request, env) {
     const TOKEN = env.TELEGRAM_TOKEN || ''
-    if (!TOKEN) {
-      console.error('TELEGRAM_TOKEN не настроен')
-    }
-
     const API = `https://api.telegram.org/bot${TOKEN}`
 
     if (request.method === 'GET') {
-      return new Response('Jarvis v3 online', {
-        headers: { 'Content-Type': 'text/plain' }
-      })
+      return new Response('Jarvis v3 online', { headers: { 'Content-Type': 'text/plain' } })
     }
 
     if (request.method !== 'POST') {
@@ -81,38 +78,54 @@ export default {
     try {
       const update = await request.json()
       const message = update.message || update.callback_query?.message
-
-      if (!message || !message.chat) {
-        return new Response('Invalid message format', { status: 400 })
-      }
-
       const chatId = message.chat.id
-      const text = message.text?.trim() || ''
+      const text = message.text?.trim()
 
       if (!sessions[chatId]) sessions[chatId] = {}
       const session = sessions[chatId]
 
-      if (text === '/start' || text === 'Новый расчет 🔄') {
+      if (text === '/start' || text === '🔄 Новый расчет') {
         sessions[chatId] = {}
-        await sendMessage(API, chatId, 'Привет, я Jarvis 🤖\nВыбери сумму аккаунта:', options.accounts)
+        await sendMessage(API, chatId, 'Привет, я Jarvis 🤖\nВыбери сумму аккаунта:', [options.accounts])
+        return new Response('OK')
+      }
+
+      if (text === '🗑 Удалить расчет') {
+        sessions[chatId] = {}
+        await sendMessage(API, chatId, 'Расчёт удалён ✅\nНажмите /start для нового расчета')
         return new Response('OK')
       }
 
       if (!session.account && options.accounts.includes(text)) {
         session.account = parseFloat(text) * 1000
-        await sendMessage(API, chatId, 'Теперь выбери риск:', options.risks)
+        await sendMessage(API, chatId, 'Теперь выбери риск:', [options.risks])
         return new Response('OK')
       }
 
       if (!session.risk && options.risks.includes(text)) {
         session.risk = parseFloat(text) / 100
-        await sendMessage(API, chatId, 'Выбери инструмент:', options.pairs)
+        await sendMessage(API, chatId, 'Выбери категорию инструмента:', [
+          ['🤑 Forex', '🥇 Metals'],
+          ['📈 Indices']
+        ])
         return new Response('OK')
       }
 
-      if (!session.pair && options.pairs.includes(text)) {
+      if (!session.category && options.categories.includes(text)) {
+        session.category = text
+        const instruments = options.pairs[text]
+        await sendMessage(API, chatId, 'Выбери инструмент:', instruments.reduce((rows, item, idx) => {
+          if (idx % 2 === 0) rows.push([item])
+          else rows[rows.length - 1].push(item)
+          return rows
+        }, []))
+        return new Response('OK')
+      }
+
+      const flatPairs = Object.values(options.pairs).flat()
+      if (!session.pair && flatPairs.includes(text)) {
         session.pair = text
-        if (['GER40.cash', 'EU50.cash'].includes(text)) {
+        if (['🇩🇪 GER40.cash', '🇪🇺 EU50.cash'].includes(text)) {
           await sendMessage(API, chatId, 'Введите курс EURUSD:')
         } else {
           await sendMessage(API, chatId, `Введи цену входа для ${text}:`)
@@ -120,7 +133,7 @@ export default {
         return new Response('OK')
       }
 
-      if ((session.pair === 'GER40.cash' || session.pair === 'EU50.cash') && !session.eurusd && !isNaN(parseFloat(text))) {
+      if ((session.pair === '🇩🇪 GER40.cash' || session.pair === '🇪🇺 EU50.cash') && !session.eurusd && !isNaN(parseFloat(text))) {
         session.eurusd = parseFloat(text)
         await sendMessage(API, chatId, `Введи цену входа для ${session.pair}:`)
         return new Response('OK')
@@ -146,29 +159,29 @@ export default {
         if (lot) {
           const rr = Math.abs((session.tp - session.entry) / (session.entry - session.sl)).toFixed(2)
           responseText = [
-            '📊 Результат расчета:',
-            `📌 Инструмент: ${session.pair}`,
-            `💰 Лот: ${lot}`,
-            `🔴 SL: ${session.sl}`,
-            `🟢 TP: ${session.tp}`,
-            `⚖️ RR: ${rr}`,
-            '',
-            'Для нового расчета нажмите кнопку ниже'
+            '────────────────────────',
+            `📈 ${session.pair} | Risk: ${(session.risk*100).toFixed(1)}%`,
+            ``,
+            `💵 Lot Size: ${lot}`,
+            `🔴 Stop Loss: ${session.sl}`,
+            `🟢 Take Profit: ${session.tp}`,
+            `⚖️ R:R = ${rr}`,
+            '────────────────────────'
           ].join('\n')
         } else {
           responseText = '❌ Ошибка в расчетах. Проверьте введенные данные.'
         }
 
         sessions[chatId] = {}
-        await sendMessage(API, chatId, responseText, ['Новый расчет 🔄'])
+        await sendMessage(API, chatId, responseText, [['🗑 Удалить расчет', '🔄 Новый расчет']])
         return new Response('OK')
       }
 
       await sendMessage(API, chatId, 'Я не понял команду. Нажмите /start')
       return new Response('OK')
 
-    } catch (error) {
-      console.error('Error:', error)
+    } catch (err) {
+      console.error('Error:', err)
       return new Response('Internal Server Error', { status: 500 })
     }
   }
